@@ -110,8 +110,8 @@ func (w *WorkspaceWatcher) AddRegistrations(ctx context.Context, id string, watc
 			maxFilesToOpen := 50 // Default conservative limit
 
 			switch serverName {
-			case "typescript", "typescript-language-server", "tsserver", "vtsls":
-				// TypeScript servers benefit from seeing more files
+			case "typescript", "typescript-language-server", "tsserver", "vtsls", "arkts", "ets-language-server":
+				// TypeScript-like servers benefit from seeing more files
 				maxFilesToOpen = 100
 			case "java", "jdtls":
 				// Java servers need to see many files for project model
@@ -213,6 +213,15 @@ func (w *WorkspaceWatcher) openHighPriorityFiles(ctx context.Context, serverName
 			"**/index.js",
 			"**/main.ts",
 			"**/main.js",
+		}
+	case "arkts", "ets-language-server":
+		patterns = []string{
+			"**/tsconfig.json",
+			"**/build-profile.json5",
+			"**/oh-package.json5",
+			"**/module.json5",
+			"**/index.ets",
+			"**/main.ets",
 		}
 	case "gopls":
 		patterns = []string{
@@ -696,6 +705,8 @@ func getServerNameFromContext(ctx context.Context) string {
 		// Extract server name from path
 		if strings.Contains(path, "typescript") || strings.Contains(path, "tsserver") || strings.Contains(path, "vtsls") {
 			return "typescript"
+		} else if strings.Contains(path, "arkts") || strings.Contains(path, "ets-language-server") {
+			return "arkts"
 		} else if strings.Contains(path, "gopls") {
 			return "gopls"
 		} else if strings.Contains(path, "rust-analyzer") {
@@ -721,7 +732,7 @@ func shouldPreloadFiles(serverName string) bool {
 	// TypeScript/JavaScript servers typically need some files preloaded
 	// to properly resolve imports and provide intellisense
 	switch serverName {
-	case "typescript", "typescript-language-server", "tsserver", "vtsls":
+	case "typescript", "typescript-language-server", "tsserver", "vtsls", "arkts", "ets-language-server":
 		return true
 	case "java", "jdtls":
 		// Java servers often need to see source files to build the project model
@@ -738,6 +749,7 @@ var (
 	excludedDirNames = map[string]bool{
 		".git":         true,
 		"node_modules": true,
+		"oh_modules":   true,
 		"dist":         true,
 		"build":        true,
 		"out":          true,
@@ -905,6 +917,8 @@ func (w *WorkspaceWatcher) openMatchingFile(ctx context.Context, path string) {
 			switch serverName {
 			case "typescript", "typescript-language-server", "tsserver", "vtsls":
 				shouldOpen = ext == ".ts" || ext == ".js" || ext == ".tsx" || ext == ".jsx"
+			case "arkts", "ets-language-server":
+				shouldOpen = ext == ".ets" || ext == ".ts" || ext == ".js"
 			case "gopls":
 				shouldOpen = ext == ".go"
 			case "rust-analyzer":
@@ -947,6 +961,13 @@ func isHighPriorityFile(path string, serverName string) bool {
 			fileName == "index.js" ||
 			fileName == "main.ts" ||
 			fileName == "main.js"
+	case "arkts", "ets-language-server":
+		return fileName == "tsconfig.json" ||
+			fileName == "build-profile.json5" ||
+			fileName == "oh-package.json5" ||
+			fileName == "module.json5" ||
+			fileName == "index.ets" ||
+			fileName == "main.ets"
 	case "gopls":
 		// For Go, we want to open go.mod files immediately
 		return fileName == "go.mod" ||

@@ -347,6 +347,7 @@ const (
 	ServerTypeUnknown ServerType = iota
 	ServerTypeGo
 	ServerTypeTypeScript
+	ServerTypeArkTS
 	ServerTypeRust
 	ServerTypePython
 	ServerTypeGeneric
@@ -363,6 +364,8 @@ func (c *Client) detectServerType() ServerType {
 	switch {
 	case strings.Contains(cmdPath, "gopls"):
 		return ServerTypeGo
+	case strings.Contains(cmdPath, "arkts") || strings.Contains(cmdPath, "ets-language-server"):
+		return ServerTypeArkTS
 	case strings.Contains(cmdPath, "typescript") || strings.Contains(cmdPath, "vtsls") || strings.Contains(cmdPath, "tsserver"):
 		return ServerTypeTypeScript
 	case strings.Contains(cmdPath, "rust-analyzer"):
@@ -382,12 +385,19 @@ func (c *Client) openKeyConfigFiles(ctx context.Context) {
 	var filesToOpen []string
 
 	switch serverType {
-	case ServerTypeTypeScript:
-		// TypeScript servers need these config files to properly initialize
+	case ServerTypeTypeScript, ServerTypeArkTS:
 		filesToOpen = []string{
 			filepath.Join(workDir, "tsconfig.json"),
 			filepath.Join(workDir, "package.json"),
 			filepath.Join(workDir, "jsconfig.json"),
+		}
+
+		if serverType == ServerTypeArkTS {
+			filesToOpen = append(filesToOpen,
+				filepath.Join(workDir, "build-profile.json5"),
+				filepath.Join(workDir, "oh-package.json5"),
+				filepath.Join(workDir, "module.json5"),
+			)
 		}
 
 		// Also find and open a few TypeScript files to help the server initialize
@@ -420,8 +430,8 @@ func (c *Client) openKeyConfigFiles(ctx context.Context) {
 // pingServerByType sends a ping request appropriate for the server type
 func (c *Client) pingServerByType(ctx context.Context, serverType ServerType) error {
 	switch serverType {
-	case ServerTypeTypeScript:
-		// For TypeScript, try a document symbol request on an open file
+	case ServerTypeTypeScript, ServerTypeArkTS:
+		// For TypeScript and ArkTS, try a document symbol request on an open file
 		return c.pingTypeScriptServer(ctx)
 	case ServerTypeGo:
 		// For Go, workspace/symbol works well
@@ -450,7 +460,8 @@ func (c *Client) pingTypeScriptServer(ctx context.Context) error {
 	for uri := range c.openFiles {
 		filePath := strings.TrimPrefix(uri, "file://")
 		if strings.HasSuffix(filePath, ".ts") || strings.HasSuffix(filePath, ".js") ||
-			strings.HasSuffix(filePath, ".tsx") || strings.HasSuffix(filePath, ".jsx") {
+			strings.HasSuffix(filePath, ".tsx") || strings.HasSuffix(filePath, ".jsx") ||
+			strings.HasSuffix(filePath, ".ets") {
 			var symbols []protocol.DocumentSymbol
 			err := c.Call(ctx, "textDocument/documentSymbol", protocol.DocumentSymbolParams{
 				TextDocument: protocol.TextDocumentIdentifier{
@@ -476,8 +487,8 @@ func (c *Client) pingTypeScriptServer(ctx context.Context) error {
 		}
 
 		ext := filepath.Ext(path)
-		if ext == ".ts" || ext == ".js" || ext == ".tsx" || ext == ".jsx" {
-			// Found a TypeScript file, try to open it
+		if ext == ".ts" || ext == ".js" || ext == ".tsx" || ext == ".jsx" || ext == ".ets" {
+			// Found a TypeScript or ArkTS file, try to open it
 			if err := c.OpenFile(ctx, path); err == nil {
 				// Successfully opened, stop walking
 				return filepath.SkipAll
@@ -522,12 +533,12 @@ func (c *Client) openTypeScriptFiles(ctx context.Context, workDir string) {
 
 		// Check file extension
 		ext := filepath.Ext(path)
-		if ext == ".ts" || ext == ".tsx" || ext == ".js" || ext == ".jsx" {
+		if ext == ".ts" || ext == ".tsx" || ext == ".js" || ext == ".jsx" || ext == ".ets" {
 			// Try to open the file
 			if err := c.OpenFile(ctx, path); err == nil {
 				filesOpened++
 				if cnf.DebugLSP {
-					logging.Debug("Opened TypeScript file for initialization", "file", path)
+					logging.Debug("Opened TypeScript/ArkTS file for initialization", "file", path)
 				}
 			}
 		}
@@ -540,7 +551,7 @@ func (c *Client) openTypeScriptFiles(ctx context.Context, workDir string) {
 	}
 
 	if cnf.DebugLSP {
-		logging.Debug("Opened TypeScript files for initialization", "count", filesOpened)
+		logging.Debug("Opened TypeScript/ArkTS files for initialization", "count", filesOpened)
 	}
 }
 
@@ -556,6 +567,7 @@ func shouldSkipDir(path string) bool {
 	// Skip common directories that won't contain relevant source files
 	skipDirs := map[string]bool{
 		"node_modules": true,
+		"oh_modules":   true,
 		"dist":         true,
 		"build":        true,
 		"coverage":     true,

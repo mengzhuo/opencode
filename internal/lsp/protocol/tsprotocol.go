@@ -6700,6 +6700,7 @@ const (
 	LangSwift           LanguageKind = "swift"
 	LangTypeScript      LanguageKind = "typescript"
 	LangTypeScriptReact LanguageKind = "typescriptreact"
+	LangArkTS           LanguageKind = "ets"
 	LangTeX             LanguageKind = "tex"
 	LangVisualBasic     LanguageKind = "vb"
 	LangXML             LanguageKind = "xml"
