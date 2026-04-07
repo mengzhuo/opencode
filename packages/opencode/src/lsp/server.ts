@@ -132,6 +132,33 @@ export namespace LSPServer {
     },
   }
 
+  export const ArkTS: Info = {
+    id: "arkts",
+    extensions: [".ets"],
+    root: NearestRoot(["package-lock.json", "bun.lockb", "bun.lock", "pnpm-lock.yaml", "yarn.lock", "package.json"]),
+    async spawn(root) {
+      let binary = which("ets-language-server")
+      const args: string[] = []
+      if (!binary) {
+        if (Flag.OPENCODE_DISABLE_LSP_DOWNLOAD) return
+        const resolved = await Npm.which("@arkts/language-server")
+        if (!resolved) return
+        binary = resolved
+      }
+      args.push("--stdio")
+      const proc = spawn(binary, args, {
+        cwd: root,
+        env: {
+          ...process.env,
+        },
+      })
+      return {
+        process: proc,
+        initialization: {},
+      }
+    },
+  }
+
   export const Vue: Info = {
     id: "vue",
     extensions: [".vue"],

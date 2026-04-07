@@ -55,6 +55,29 @@ describe("lsp.spawn", () => {
     }
   })
 
+  test("would spawn builtin ArkTS LSP for .ets files inside instance", async () => {
+    await using tmp = await tmpdir()
+    const spy = spyOn(LSPServer.ArkTS, "spawn").mockResolvedValue(undefined)
+
+    try {
+      await Instance.provide({
+        directory: tmp.path,
+        fn: async () => {
+          await Lsp.LSP.hover({
+            file: path.join(tmp.path, "src", "App.ets"),
+            line: 0,
+            character: 0,
+          })
+        },
+      })
+
+      expect(spy).toHaveBeenCalledTimes(1)
+    } finally {
+      spy.mockRestore()
+      await Instance.disposeAll()
+    }
+  })
+
   test("spawns builtin Typescript LSP with correct arguments", async () => {
     await using tmp = await tmpdir()
 

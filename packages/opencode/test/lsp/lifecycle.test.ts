@@ -64,6 +64,14 @@ describe("LSP service lifecycle", () => {
   )
 
   test(
+    "hasClients() returns true for .ets files in instance",
+    withInstance(async (dir) => {
+      const result = await Lsp.LSP.hasClients(path.join(dir, "test.ets"))
+      expect(result).toBe(true)
+    }),
+  )
+
+  test(
     "hasClients() returns false for files outside instance",
     withInstance(async (dir) => {
       const result = await Lsp.LSP.hasClients(path.join(dir, "..", "outside.ts"))
